@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 import shutil
 import openpyxl
 
-# Extraer zip
+# Función para extraer zip
 def extract_zip(uploaded_file, extract_dir):
     with zipfile.ZipFile(uploaded_file, 'r') as zip_ref:
         zip_ref.extractall(extract_dir)
@@ -36,16 +36,11 @@ def process_course_structure(base_dir):
                                     resource_path = file_path_part
                                     resource_name = ""
 
-                                # Limpieza de nombre
-                                clean_name = resource_name.strip().lower()
-                                clean_path = resource_path.strip().lower()
-
                                 identifiers.append({
                                     "Archivo XML": file,
                                     "Identifier completo": id_text,
-                                    "Ruta extraída": clean_path,
-                                    "Archivo extraído": clean_name,
-                                    "Clave comparación": clean_path + clean_name
+                                    "Ruta extraída": resource_path,
+                                    "Archivo extraído": resource_name
                                 })
                 except:
                     continue
@@ -57,7 +52,7 @@ def process_course_structure(base_dir):
 st.title("Comparador de respaldos de curso (Blackboard)")
 
 zip1 = st.file_uploader("Selecciona el primer respaldo (versión original)", type=["zip"])
-zip2 = st.file_uploader("Selecciona el segundo respaldo (versión actualizado)", type=["zip"])
+zip2 = st.file_uploader("Selecciona el segundo respaldo (versión actualizada)", type=["zip"])
 
 if zip1 and zip2:
     with st.spinner("Procesando respaldos..."):
@@ -73,27 +68,27 @@ if zip1 and zip2:
         df_v1 = process_course_structure(dir1)
         df_v2 = process_course_structure(dir2)
 
-        set_v1 = set(df_v1["Clave comparación"])
-        set_v2 = set(df_v2["Clave comparación"])
+        set_v1 = set(df_v1["Archivo extraído"].str.strip().str.lower())
+        set_v2 = set(df_v2["Archivo extraído"].str.strip().str.lower())
 
         nuevos = set_v2 - set_v1
         eliminados = set_v1 - set_v2
         iguales = set_v1 & set_v2
 
-        df_nuevos = df_v2[df_v2["Clave comparación"].isin(nuevos)]
-        df_eliminados = df_v1[df_v1["Clave comparación"].isin(eliminados)]
-        df_iguales = df_v2[df_v2["Clave comparación"].isin(iguales)]
+        df_nuevos = df_v2[df_v2["Archivo extraído"].str.strip().str.lower().isin(nuevos)]
+        df_eliminados = df_v1[df_v1["Archivo extraído"].str.strip().str.lower().isin(eliminados)]
+        df_iguales = df_v2[df_v2["Archivo extraído"].str.strip().str.lower().isin(iguales)]
 
         st.write("### Archivos nuevos en el respaldo actualizado")
-        st.dataframe(df_nuevos if not df_nuevos.empty else pd.DataFrame([{"Mensaje": "No hay archivos nuevos"}]))
+        st.dataframe(df_nuevos)
 
         st.write("### Archivos eliminados")
-        st.dataframe(df_eliminados if not df_eliminados.empty else pd.DataFrame([{"Mensaje": "No hay archivos eliminados"}]))
+        st.dataframe(df_eliminados)
 
         st.write("### Archivos que se mantienen")
-        st.dataframe(df_iguales if not df_iguales.empty else pd.DataFrame([{"Mensaje": "No hay archivos que se mantengan"}]))
+        st.dataframe(df_iguales)
 
-        # Reporte en Excel
+        # Guardar reporte en Excel
         output_file = "reporte_comparacion.xlsx"
         with pd.ExcelWriter(output_file, engine="openpyxl") as writer:
             df_nuevos.to_excel(writer, sheet_name="Nuevos", index=False)

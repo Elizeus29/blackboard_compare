@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 import shutil
 import openpyxl
 
-# Función para extraer zip desde archivo físico
+# Extraer zip desde archivo físico
 def extract_zip(zip_file_path, extract_dir):
     if os.path.exists(extract_dir):
         shutil.rmtree(extract_dir)
@@ -14,7 +14,7 @@ def extract_zip(zip_file_path, extract_dir):
     with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
         zip_ref.extractall(extract_dir)
 
-# Procesar identifiers
+# Procesar identifiers usando ET.parse()
 def process_course_structure(base_dir):
     identifiers = []
     for root, dirs, files in os.walk(base_dir):
@@ -22,10 +22,9 @@ def process_course_structure(base_dir):
             if file.lower().endswith('.xml'):
                 file_path = os.path.join(root, file)
                 try:
-                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                        content = f.read()
-                    tree = ET.fromstring(content)
-                    for id_elem in tree.findall('.//{*}identifier'):
+                    tree = ET.parse(file_path)
+                    xml_root = tree.getroot()
+                    for id_elem in xml_root.findall('.//{*}identifier'):
                         if id_elem.text:
                             id_text = id_elem.text.strip()
                             if "/institution/duoc_coaching_ultra/gdp8900_ols/" in id_text.lower():
@@ -61,12 +60,10 @@ zip2 = st.file_uploader("Selecciona el segundo respaldo (versión actualizado)",
 
 if zip1 and zip2:
     with st.spinner("Procesando respaldos..."):
-        # Guardar ZIP 1 en disco
         zip1_path = "temp_original.zip"
         with open(zip1_path, "wb") as f:
             f.write(zip1.read())
 
-        # Guardar ZIP 2 en disco
         zip2_path = "temp_actualizado.zip"
         with open(zip2_path, "wb") as f:
             f.write(zip2.read())

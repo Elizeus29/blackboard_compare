@@ -1,21 +1,20 @@
-import streamlit as st
 import zipfile
 import os
 import pandas as pd
 import xml.etree.ElementTree as ET
 import shutil
+import streamlit as st
 import openpyxl
 
-# Función para extraer zip y mostrar logs
-def extract_zip(zip_file_path, extract_dir):
+# Función para extraer zip
+def extract_zip(zip_file, extract_dir):
     if os.path.exists(extract_dir):
         shutil.rmtree(extract_dir)
     os.makedirs(extract_dir, exist_ok=True)
-    with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
+    with zipfile.ZipFile(zip_file, 'r') as zip_ref:
         zip_ref.extractall(extract_dir)
-    st.info(f"Archivos extraídos en: {extract_dir}")
 
-# Procesar identifiers exactamente como en mi entorno interno
+# Procesar identifiers (sin filtrar inicialmente)
 def process_course_structure(base_dir):
     identifiers = []
     for root, dirs, files in os.walk(base_dir):
@@ -25,29 +24,16 @@ def process_course_structure(base_dir):
                 try:
                     tree = ET.parse(file_path)
                     xml_root = tree.getroot()
-
                     for id_elem in xml_root.findall('.//{*}identifier'):
                         if id_elem.text:
                             id_text = id_elem.text.strip()
-                            if "/institution/duoc_coaching_ultra/gdp8900_ols/" in id_text.lower():
-                                path_start = id_text.lower().find("/institution/duoc_coaching_ultra/gdp8900_ols/")
-                                file_path_part = id_text[path_start:]
-                                if "/" in file_path_part:
-                                    path_parts = file_path_part.rsplit("/", 1)
-                                    resource_path = path_parts[0] + "/"
-                                    resource_name = path_parts[1] if len(path_parts) > 1 else ""
-                                else:
-                                    resource_path = file_path_part
-                                    resource_name = ""
-
-                                identifiers.append({
-                                    "Archivo XML": file,
-                                    "Identifier completo": id_text,
-                                    "Ruta extraída": resource_path,
-                                    "Archivo extraído": resource_name
-                                })
+                            identifiers.append({
+                                "Archivo XML": file,
+                                "Identifier completo": id_text,
+                                "Archivo extraído": id_text.split("/")[-1]
+                            })
                 except Exception as e:
-                    st.warning(f"Error al procesar {file}: {e}")
+                    st.warning(f"Error procesando {file}: {e}")
                     continue
 
     df_identifiers = pd.DataFrame(identifiers)
@@ -57,23 +43,23 @@ def process_course_structure(base_dir):
         df_identifiers["Clave comparación"] = df_identifiers["Archivo extraído"]
     return df_identifiers
 
-st.title("Comparador de respaldos de curso (Blackboard)")
+st.title("Comparador de respaldos de curso (Blackboard) - Streamlit Cloud Exacto")
 
 zip1 = st.file_uploader("Selecciona el primer respaldo (versión original)", type=["zip"])
 zip2 = st.file_uploader("Selecciona el segundo respaldo (versión actualizado)", type=["zip"])
 
 if zip1 and zip2:
     with st.spinner("Procesando respaldos..."):
-        zip1_path = "temp_original.zip"
+        zip1_path = "temp_v1.zip"
         with open(zip1_path, "wb") as f:
-            f.write(zip1.getbuffer())
+            f.write(zip1.read())
 
-        zip2_path = "temp_actualizado.zip"
+        zip2_path = "temp_v2.zip"
         with open(zip2_path, "wb") as f:
-            f.write(zip2.getbuffer())
+            f.write(zip2.read())
 
-        dir1 = "temp_extracted_v1"
-        dir2 = "temp_extracted_v2"
+        dir1 = "extracted_v1"
+        dir2 = "extracted_v2"
 
         extract_zip(zip1_path, dir1)
         extract_zip(zip2_path, dir2)
@@ -93,13 +79,13 @@ if zip1 and zip2:
             df_eliminados = df_v1[df_v1["Clave comparación"].isin(eliminados)]
             df_iguales = df_v2[df_v2["Clave comparación"].isin(iguales)]
 
-            st.write("### Archivos nuevos en el respaldo actualizado")
+            st.subheader("Archivos nuevos en el respaldo actualizado")
             st.dataframe(df_nuevos)
 
-            st.write("### Archivos eliminados")
+            st.subheader("Archivos eliminados")
             st.dataframe(df_eliminados)
 
-            st.write("### Archivos que se mantienen")
+            st.subheader("Archivos que se mantienen")
             st.dataframe(df_iguales)
 
             output_file = "reporte_comparacion.xlsx"
@@ -110,9 +96,8 @@ if zip1 and zip2:
 
             with open(output_file, "rb") as f:
                 st.download_button("Descargar reporte completo (Excel)", f, file_name="reporte_comparacion.xlsx")
-
         else:
-            st.warning("No se encontraron identifiers en uno o ambos respaldos.")
+            st.warning("⚠️ No se encontraron identifiers en uno o ambos respaldos. Revisa la estructura interna.")
 
         shutil.rmtree(dir1)
         shutil.rmtree(dir2)

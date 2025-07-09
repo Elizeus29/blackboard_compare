@@ -6,24 +6,36 @@ import xml.etree.ElementTree as ET
 import shutil
 import openpyxl
 
-# Extraer zip desde archivo físico
+# Función para extraer zip y guardar logs
 def extract_zip(zip_file_path, extract_dir):
     if os.path.exists(extract_dir):
         shutil.rmtree(extract_dir)
     os.makedirs(extract_dir, exist_ok=True)
     with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
         zip_ref.extractall(extract_dir)
+    st.info(f"Archivos extraídos en: {extract_dir}")
 
-# Procesar identifiers usando ET.parse()
+# Procesar identifiers con logs y parseo robusto
 def process_course_structure(base_dir):
     identifiers = []
+    total_xml = 0
+    processed_xml = 0
+
     for root, dirs, files in os.walk(base_dir):
         for file in files:
             if file.lower().endswith('.xml'):
+                total_xml += 1
                 file_path = os.path.join(root, file)
                 try:
-                    tree = ET.parse(file_path)
+                    # Leer archivo completo en bytes y decodificar manualmente sin reemplazar caracteres
+                    with open(file_path, 'rb') as f:
+                        raw_content = f.read()
+                    content = raw_content.decode(errors='replace')
+                    # Parsear a partir de archivo físico
+                    tree = ET.ElementTree(ET.fromstring(content))
                     xml_root = tree.getroot()
+                    processed_xml += 1
+
                     for id_elem in xml_root.findall('.//{*}identifier'):
                         if id_elem.text:
                             id_text = id_elem.text.strip()
@@ -48,6 +60,10 @@ def process_course_structure(base_dir):
                     st.warning(f"Error al procesar {file}: {e}")
                     continue
 
+    st.write(f"Total XML encontrados: {total_xml}")
+    st.write(f"XML procesados correctamente: {processed_xml}")
+    st.write(f"Identifiers extraídos: {len(identifiers)}")
+
     df_identifiers = pd.DataFrame(identifiers)
     df_identifiers = df_identifiers[df_identifiers["Archivo extraído"].str.contains(r"\\.", na=False)]
     df_identifiers["Archivo extraído"] = df_identifiers["Archivo extraído"].str.strip().str.lower()
@@ -62,11 +78,11 @@ if zip1 and zip2:
     with st.spinner("Procesando respaldos..."):
         zip1_path = "temp_original.zip"
         with open(zip1_path, "wb") as f:
-            f.write(zip1.read())
+            f.write(zip1.getbuffer())
 
         zip2_path = "temp_actualizado.zip"
         with open(zip2_path, "wb") as f:
-            f.write(zip2.read())
+            f.write(zip2.getbuffer())
 
         dir1 = "temp_extracted_v1"
         dir2 = "temp_extracted_v2"

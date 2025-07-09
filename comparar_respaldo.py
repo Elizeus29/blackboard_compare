@@ -14,17 +14,23 @@ def extract_zip(uploaded_file, extract_dir):
     with zipfile.ZipFile(uploaded_file, 'r') as zip_ref:
         zip_ref.extractall(extract_dir)
 
-# Procesar identifiers
+# Procesar identifiers con logs
 def process_course_structure(base_dir):
     identifiers = []
+    total_xml = 0
+    processed_xml = 0
+
     for root, dirs, files in os.walk(base_dir):
         for file in files:
             if file.lower().endswith('.xml'):
+                total_xml += 1
                 file_path = os.path.join(root, file)
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         content = f.read()
                     tree = ET.fromstring(content)
+                    processed_xml += 1
+
                     for id_elem in tree.findall('.//{*}identifier'):
                         if id_elem.text:
                             id_text = id_elem.text.strip()
@@ -45,12 +51,16 @@ def process_course_structure(base_dir):
                                     "Ruta extraída": resource_path,
                                     "Archivo extraído": resource_name
                                 })
-                except:
+                except Exception as e:
+                    st.warning(f"Error al procesar {file}: {e}")
                     continue
 
     df_identifiers = pd.DataFrame(identifiers)
     df_identifiers = df_identifiers[df_identifiers["Archivo extraído"].str.contains(r"\\.", na=False)]
     df_identifiers["Archivo extraído"] = df_identifiers["Archivo extraído"].str.strip().str.lower()
+
+    st.info(f"XML totales encontrados: {total_xml}, XML procesados correctamente: {processed_xml}, Identifiers extraídos: {len(df_identifiers)}")
+
     return df_identifiers
 
 st.title("Comparador de respaldos de curso (Blackboard)")
@@ -63,7 +73,6 @@ if zip1 and zip2:
         dir1 = "temp_extracted_v1"
         dir2 = "temp_extracted_v2"
 
-        # Borrar carpetas previas y caché completamente
         if os.path.exists(dir1):
             shutil.rmtree(dir1)
         if os.path.exists(dir2):
@@ -75,7 +84,6 @@ if zip1 and zip2:
         df_v1 = process_course_structure(dir1)
         df_v2 = process_course_structure(dir2)
 
-        # Asegurar limpieza
         df_v1["Archivo extraído"] = df_v1["Archivo extraído"].str.strip().str.lower()
         df_v2["Archivo extraído"] = df_v2["Archivo extraído"].str.strip().str.lower()
 
@@ -99,7 +107,6 @@ if zip1 and zip2:
         st.write("### Archivos que se mantienen")
         st.dataframe(df_iguales)
 
-        # Guardar reporte en Excel
         output_file = "reporte_comparacion.xlsx"
         with pd.ExcelWriter(output_file, engine="openpyxl") as writer:
             df_nuevos.to_excel(writer, sheet_name="Nuevos", index=False)
@@ -109,7 +116,6 @@ if zip1 and zip2:
         with open(output_file, "rb") as f:
             st.download_button("Descargar reporte completo (Excel)", f, file_name="reporte_comparacion.xlsx")
 
-        # Borrar carpetas temporales después de procesar
         shutil.rmtree(dir1)
         shutil.rmtree(dir2)
 

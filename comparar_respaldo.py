@@ -6,31 +6,25 @@ import xml.etree.ElementTree as ET
 import shutil
 import openpyxl
 
-# Función para extraer zip
-def extract_zip(uploaded_file, extract_dir):
+# Función para extraer zip desde archivo físico
+def extract_zip(zip_file_path, extract_dir):
     if os.path.exists(extract_dir):
         shutil.rmtree(extract_dir)
     os.makedirs(extract_dir, exist_ok=True)
-    with zipfile.ZipFile(uploaded_file, 'r') as zip_ref:
+    with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
         zip_ref.extractall(extract_dir)
 
-# Procesar identifiers con logs
+# Procesar identifiers
 def process_course_structure(base_dir):
     identifiers = []
-    total_xml = 0
-    processed_xml = 0
-
     for root, dirs, files in os.walk(base_dir):
         for file in files:
             if file.lower().endswith('.xml'):
-                total_xml += 1
                 file_path = os.path.join(root, file)
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         content = f.read()
                     tree = ET.fromstring(content)
-                    processed_xml += 1
-
                     for id_elem in tree.findall('.//{*}identifier'):
                         if id_elem.text:
                             id_text = id_elem.text.strip()
@@ -58,9 +52,6 @@ def process_course_structure(base_dir):
     df_identifiers = pd.DataFrame(identifiers)
     df_identifiers = df_identifiers[df_identifiers["Archivo extraído"].str.contains(r"\\.", na=False)]
     df_identifiers["Archivo extraído"] = df_identifiers["Archivo extraído"].str.strip().str.lower()
-
-    st.info(f"XML totales encontrados: {total_xml}, XML procesados correctamente: {processed_xml}, Identifiers extraídos: {len(df_identifiers)}")
-
     return df_identifiers
 
 st.title("Comparador de respaldos de curso (Blackboard)")
@@ -70,22 +61,24 @@ zip2 = st.file_uploader("Selecciona el segundo respaldo (versión actualizado)",
 
 if zip1 and zip2:
     with st.spinner("Procesando respaldos..."):
+        # Guardar ZIP 1 en disco
+        zip1_path = "temp_original.zip"
+        with open(zip1_path, "wb") as f:
+            f.write(zip1.read())
+
+        # Guardar ZIP 2 en disco
+        zip2_path = "temp_actualizado.zip"
+        with open(zip2_path, "wb") as f:
+            f.write(zip2.read())
+
         dir1 = "temp_extracted_v1"
         dir2 = "temp_extracted_v2"
 
-        if os.path.exists(dir1):
-            shutil.rmtree(dir1)
-        if os.path.exists(dir2):
-            shutil.rmtree(dir2)
-
-        extract_zip(zip1, dir1)
-        extract_zip(zip2, dir2)
+        extract_zip(zip1_path, dir1)
+        extract_zip(zip2_path, dir2)
 
         df_v1 = process_course_structure(dir1)
         df_v2 = process_course_structure(dir2)
-
-        df_v1["Archivo extraído"] = df_v1["Archivo extraído"].str.strip().str.lower()
-        df_v2["Archivo extraído"] = df_v2["Archivo extraído"].str.strip().str.lower()
 
         set_v1 = set(df_v1["Archivo extraído"])
         set_v2 = set(df_v2["Archivo extraído"])
@@ -118,5 +111,7 @@ if zip1 and zip2:
 
         shutil.rmtree(dir1)
         shutil.rmtree(dir2)
+        os.remove(zip1_path)
+        os.remove(zip2_path)
 
     st.success("¡Comparación completada!")

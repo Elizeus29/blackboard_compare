@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 import shutil
 import openpyxl
 
-# Función para extraer zip y guardar logs
+# Extraer zip y mostrar logs
 def extract_zip(zip_file_path, extract_dir):
     if os.path.exists(extract_dir):
         shutil.rmtree(extract_dir)
@@ -15,7 +15,7 @@ def extract_zip(zip_file_path, extract_dir):
         zip_ref.extractall(extract_dir)
     st.info(f"Archivos extraídos en: {extract_dir}")
 
-# Procesar identifiers con logs y parseo robusto
+# Procesar identifiers usando parse robusto
 def process_course_structure(base_dir):
     identifiers = []
     total_xml = 0
@@ -27,12 +27,7 @@ def process_course_structure(base_dir):
                 total_xml += 1
                 file_path = os.path.join(root, file)
                 try:
-                    # Leer archivo completo en bytes y decodificar manualmente sin reemplazar caracteres
-                    with open(file_path, 'rb') as f:
-                        raw_content = f.read()
-                    content = raw_content.decode(errors='replace')
-                    # Parsear a partir de archivo físico
-                    tree = ET.ElementTree(ET.fromstring(content))
+                    tree = ET.parse(file_path)
                     xml_root = tree.getroot()
                     processed_xml += 1
 
@@ -67,6 +62,7 @@ def process_course_structure(base_dir):
     df_identifiers = pd.DataFrame(identifiers)
     df_identifiers = df_identifiers[df_identifiers["Archivo extraído"].str.contains(r"\\.", na=False)]
     df_identifiers["Archivo extraído"] = df_identifiers["Archivo extraído"].str.strip().str.lower()
+    df_identifiers["Clave comparación"] = df_identifiers["Archivo extraído"]
     return df_identifiers
 
 st.title("Comparador de respaldos de curso (Blackboard)")
@@ -93,16 +89,16 @@ if zip1 and zip2:
         df_v1 = process_course_structure(dir1)
         df_v2 = process_course_structure(dir2)
 
-        set_v1 = set(df_v1["Archivo extraído"])
-        set_v2 = set(df_v2["Archivo extraído"])
+        set_v1 = set(df_v1["Clave comparación"])
+        set_v2 = set(df_v2["Clave comparación"])
 
         nuevos = set_v2 - set_v1
         eliminados = set_v1 - set_v2
         iguales = set_v1 & set_v2
 
-        df_nuevos = df_v2[df_v2["Archivo extraído"].isin(nuevos)]
-        df_eliminados = df_v1[df_v1["Archivo extraído"].isin(eliminados)]
-        df_iguales = df_v2[df_v2["Archivo extraído"].isin(iguales)]
+        df_nuevos = df_v2[df_v2["Clave comparación"].isin(nuevos)]
+        df_eliminados = df_v1[df_v1["Clave comparación"].isin(eliminados)]
+        df_iguales = df_v2[df_v2["Clave comparación"].isin(iguales)]
 
         st.write("### Archivos nuevos en el respaldo actualizado")
         st.dataframe(df_nuevos)

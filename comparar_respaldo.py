@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 import shutil
 import openpyxl
 
-# Extraer zip y mostrar logs
+# Función para extraer zip y mostrar logs
 def extract_zip(zip_file_path, extract_dir):
     if os.path.exists(extract_dir):
         shutil.rmtree(extract_dir)
@@ -15,21 +15,16 @@ def extract_zip(zip_file_path, extract_dir):
         zip_ref.extractall(extract_dir)
     st.info(f"Archivos extraídos en: {extract_dir}")
 
-# Procesar identifiers usando parse robusto
+# Procesar identifiers exactamente como en mi entorno interno
 def process_course_structure(base_dir):
     identifiers = []
-    total_xml = 0
-    processed_xml = 0
-
     for root, dirs, files in os.walk(base_dir):
         for file in files:
             if file.lower().endswith('.xml'):
-                total_xml += 1
                 file_path = os.path.join(root, file)
                 try:
                     tree = ET.parse(file_path)
                     xml_root = tree.getroot()
-                    processed_xml += 1
 
                     for id_elem in xml_root.findall('.//{*}identifier'):
                         if id_elem.text:
@@ -55,14 +50,11 @@ def process_course_structure(base_dir):
                     st.warning(f"Error al procesar {file}: {e}")
                     continue
 
-    st.write(f"Total XML encontrados: {total_xml}")
-    st.write(f"XML procesados correctamente: {processed_xml}")
-    st.write(f"Identifiers extraídos: {len(identifiers)}")
-
     df_identifiers = pd.DataFrame(identifiers)
-    df_identifiers = df_identifiers[df_identifiers["Archivo extraído"].str.contains(r"\\.", na=False)]
-    df_identifiers["Archivo extraído"] = df_identifiers["Archivo extraído"].str.strip().str.lower()
-    df_identifiers["Clave comparación"] = df_identifiers["Archivo extraído"]
+    if not df_identifiers.empty:
+        df_identifiers = df_identifiers[df_identifiers["Archivo extraído"].str.contains(r"\\.", na=False)]
+        df_identifiers["Archivo extraído"] = df_identifiers["Archivo extraído"].str.strip().str.lower()
+        df_identifiers["Clave comparación"] = df_identifiers["Archivo extraído"]
     return df_identifiers
 
 st.title("Comparador de respaldos de curso (Blackboard)")
@@ -89,34 +81,38 @@ if zip1 and zip2:
         df_v1 = process_course_structure(dir1)
         df_v2 = process_course_structure(dir2)
 
-        set_v1 = set(df_v1["Clave comparación"])
-        set_v2 = set(df_v2["Clave comparación"])
+        if not df_v1.empty and not df_v2.empty:
+            set_v1 = set(df_v1["Clave comparación"])
+            set_v2 = set(df_v2["Clave comparación"])
 
-        nuevos = set_v2 - set_v1
-        eliminados = set_v1 - set_v2
-        iguales = set_v1 & set_v2
+            nuevos = set_v2 - set_v1
+            eliminados = set_v1 - set_v2
+            iguales = set_v1 & set_v2
 
-        df_nuevos = df_v2[df_v2["Clave comparación"].isin(nuevos)]
-        df_eliminados = df_v1[df_v1["Clave comparación"].isin(eliminados)]
-        df_iguales = df_v2[df_v2["Clave comparación"].isin(iguales)]
+            df_nuevos = df_v2[df_v2["Clave comparación"].isin(nuevos)]
+            df_eliminados = df_v1[df_v1["Clave comparación"].isin(eliminados)]
+            df_iguales = df_v2[df_v2["Clave comparación"].isin(iguales)]
 
-        st.write("### Archivos nuevos en el respaldo actualizado")
-        st.dataframe(df_nuevos)
+            st.write("### Archivos nuevos en el respaldo actualizado")
+            st.dataframe(df_nuevos)
 
-        st.write("### Archivos eliminados")
-        st.dataframe(df_eliminados)
+            st.write("### Archivos eliminados")
+            st.dataframe(df_eliminados)
 
-        st.write("### Archivos que se mantienen")
-        st.dataframe(df_iguales)
+            st.write("### Archivos que se mantienen")
+            st.dataframe(df_iguales)
 
-        output_file = "reporte_comparacion.xlsx"
-        with pd.ExcelWriter(output_file, engine="openpyxl") as writer:
-            df_nuevos.to_excel(writer, sheet_name="Nuevos", index=False)
-            df_eliminados.to_excel(writer, sheet_name="Eliminados", index=False)
-            df_iguales.to_excel(writer, sheet_name="Iguales", index=False)
+            output_file = "reporte_comparacion.xlsx"
+            with pd.ExcelWriter(output_file, engine="openpyxl") as writer:
+                df_nuevos.to_excel(writer, sheet_name="Nuevos", index=False)
+                df_eliminados.to_excel(writer, sheet_name="Eliminados", index=False)
+                df_iguales.to_excel(writer, sheet_name="Iguales", index=False)
 
-        with open(output_file, "rb") as f:
-            st.download_button("Descargar reporte completo (Excel)", f, file_name="reporte_comparacion.xlsx")
+            with open(output_file, "rb") as f:
+                st.download_button("Descargar reporte completo (Excel)", f, file_name="reporte_comparacion.xlsx")
+
+        else:
+            st.warning("No se encontraron identifiers en uno o ambos respaldos.")
 
         shutil.rmtree(dir1)
         shutil.rmtree(dir2)

@@ -47,17 +47,24 @@ def process_course_structure(base_dir):
 
     df_identifiers = pd.DataFrame(identifiers)
     df_identifiers = df_identifiers[df_identifiers["Archivo extraído"].str.contains(r"\\.", na=False)]
+    # Limpieza fuerte
+    df_identifiers["Archivo extraído"] = df_identifiers["Archivo extraído"].str.strip().str.lower()
     return df_identifiers
 
 st.title("Comparador de respaldos de curso (Blackboard)")
 
 zip1 = st.file_uploader("Selecciona el primer respaldo (versión original)", type=["zip"])
-zip2 = st.file_uploader("Selecciona el segundo respaldo (versión actualizada)", type=["zip"])
+zip2 = st.file_uploader("Selecciona el segundo respaldo (versión actualizado)", type=["zip"])
 
 if zip1 and zip2:
     with st.spinner("Procesando respaldos..."):
         dir1 = "extracted_v1"
         dir2 = "extracted_v2"
+
+        if os.path.exists(dir1):
+            shutil.rmtree(dir1)
+        if os.path.exists(dir2):
+            shutil.rmtree(dir2)
 
         os.makedirs(dir1, exist_ok=True)
         os.makedirs(dir2, exist_ok=True)
@@ -68,16 +75,20 @@ if zip1 and zip2:
         df_v1 = process_course_structure(dir1)
         df_v2 = process_course_structure(dir2)
 
-        set_v1 = set(df_v1["Archivo extraído"].str.strip().str.lower())
-        set_v2 = set(df_v2["Archivo extraído"].str.strip().str.lower())
+        # Limpieza explícita antes de sets
+        df_v1["Archivo extraído"] = df_v1["Archivo extraído"].str.strip().str.lower()
+        df_v2["Archivo extraído"] = df_v2["Archivo extraído"].str.strip().str.lower()
+
+        set_v1 = set(df_v1["Archivo extraído"])
+        set_v2 = set(df_v2["Archivo extraído"])
 
         nuevos = set_v2 - set_v1
         eliminados = set_v1 - set_v2
         iguales = set_v1 & set_v2
 
-        df_nuevos = df_v2[df_v2["Archivo extraído"].str.strip().str.lower().isin(nuevos)]
-        df_eliminados = df_v1[df_v1["Archivo extraído"].str.strip().str.lower().isin(eliminados)]
-        df_iguales = df_v2[df_v2["Archivo extraído"].str.strip().str.lower().isin(iguales)]
+        df_nuevos = df_v2[df_v2["Archivo extraído"].isin(nuevos)]
+        df_eliminados = df_v1[df_v1["Archivo extraído"].isin(eliminados)]
+        df_iguales = df_v2[df_v2["Archivo extraído"].isin(iguales)]
 
         st.write("### Archivos nuevos en el respaldo actualizado")
         st.dataframe(df_nuevos)

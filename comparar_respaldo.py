@@ -8,6 +8,9 @@ import openpyxl
 
 # Función para extraer zip
 def extract_zip(uploaded_file, extract_dir):
+    if os.path.exists(extract_dir):
+        shutil.rmtree(extract_dir)
+    os.makedirs(extract_dir, exist_ok=True)
     with zipfile.ZipFile(uploaded_file, 'r') as zip_ref:
         zip_ref.extractall(extract_dir)
 
@@ -47,7 +50,6 @@ def process_course_structure(base_dir):
 
     df_identifiers = pd.DataFrame(identifiers)
     df_identifiers = df_identifiers[df_identifiers["Archivo extraído"].str.contains(r"\\.", na=False)]
-    # Limpieza fuerte
     df_identifiers["Archivo extraído"] = df_identifiers["Archivo extraído"].str.strip().str.lower()
     return df_identifiers
 
@@ -58,16 +60,14 @@ zip2 = st.file_uploader("Selecciona el segundo respaldo (versión actualizado)",
 
 if zip1 and zip2:
     with st.spinner("Procesando respaldos..."):
-        dir1 = "extracted_v1"
-        dir2 = "extracted_v2"
+        dir1 = "temp_extracted_v1"
+        dir2 = "temp_extracted_v2"
 
+        # Borrar carpetas previas y caché completamente
         if os.path.exists(dir1):
             shutil.rmtree(dir1)
         if os.path.exists(dir2):
             shutil.rmtree(dir2)
-
-        os.makedirs(dir1, exist_ok=True)
-        os.makedirs(dir2, exist_ok=True)
 
         extract_zip(zip1, dir1)
         extract_zip(zip2, dir2)
@@ -75,7 +75,7 @@ if zip1 and zip2:
         df_v1 = process_course_structure(dir1)
         df_v2 = process_course_structure(dir2)
 
-        # Limpieza explícita antes de sets
+        # Asegurar limpieza
         df_v1["Archivo extraído"] = df_v1["Archivo extraído"].str.strip().str.lower()
         df_v2["Archivo extraído"] = df_v2["Archivo extraído"].str.strip().str.lower()
 
@@ -109,6 +109,7 @@ if zip1 and zip2:
         with open(output_file, "rb") as f:
             st.download_button("Descargar reporte completo (Excel)", f, file_name="reporte_comparacion.xlsx")
 
+        # Borrar carpetas temporales después de procesar
         shutil.rmtree(dir1)
         shutil.rmtree(dir2)
 
